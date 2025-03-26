@@ -64,6 +64,7 @@ type Service struct {
 	mutex          sync.RWMutex
 	lastCheckTime  time.Time
 	lastReportTime time.Time
+	statusVersion  string // 添加版本信息字段
 }
 
 // 钉钉消息结构体
@@ -205,6 +206,14 @@ func (s *Service) fetchAndProcessIncidents() error {
 	defer resp.Body.Close()
 	log.Printf("成功获取 HTTP 响应，状态码: %d", resp.StatusCode)
 
+	// 获取并保存版本信息
+	if version := resp.Header.Get("X-Statuspage-Version"); version != "" {
+		s.mutex.Lock()
+		s.statusVersion = version
+		s.mutex.Unlock()
+		log.Printf("获取到新的 X-Statuspage-Version: %s", version)
+	}
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("读取响应内容失败: %v", err)
@@ -264,6 +273,20 @@ func (s *Service) formatIncidentDetails(incident Incident) string {
 	return details.String()
 }
 
+func (s *Service) formatNotificationHeader() string {
+	s.mutex.RLock()
+	version := s.statusVersion
+	s.mutex.RUnlock()
+
+	var header strings.Builder
+	header.WriteString(fmt.Sprintf("时间: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))
+	if version != "" {
+		header.WriteString(fmt.Sprintf("X-Statuspage-Version: %s\n", version))
+	}
+	header.WriteString("\n")
+	return header.String()
+}
+
 func (s *Service) checkForChanges(incidents []Incident) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -285,7 +308,11 @@ func (s *Service) checkForChanges(incidents []Incident) {
 
 		var firstRunNotification strings.Builder
 		firstRunNotification.WriteString("# Cloudflare 状态监控启动\n\n")
-		firstRunNotification.WriteString(fmt.Sprintf("初始化时间: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))
+		firstRunNotification.WriteString(fmt.Sprintf("时间: %s\n", time.Now().Format("2006-01-02 15:04:05")))
+		if s.statusVersion != "" {
+			firstRunNotification.WriteString(fmt.Sprintf("X-Statuspage-Version: %s\n", s.statusVersion))
+		}
+		firstRunNotification.WriteString("\n")
 
 		if len(incidents) > 0 {
 			firstRunNotification.WriteString("## 当前活跃事件\n\n")
@@ -374,7 +401,7 @@ func (s *Service) checkForChanges(incidents []Incident) {
 	if len(changes) > 0 {
 		log.Printf("准备发送钉钉通知...")
 		notification := "# Cloudflare 状态更新\n\n" +
-			"时间: " + time.Now().Format("2006-01-02 15:04:05") + "\n\n" +
+			s.formatNotificationHeader() +
 			strings.Join(changes, "\n") + "\n\n---\n" +
 			"详细状态请访问: https://www.cloudflarestatus.com/"
 
@@ -396,7 +423,7 @@ func (s *Service) sendDailyReport() {
 
 	var report strings.Builder
 	report.WriteString("# Cloudflare 每日状态报告\n\n")
-	report.WriteString(fmt.Sprintf("报告时间: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))
+	report.WriteString(s.formatNotificationHeader())
 
 	threeDaysAgo := time.Now().AddDate(0, 0, -3)
 	hasIncidents := false
