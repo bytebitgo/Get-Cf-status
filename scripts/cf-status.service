@@ -1,0 +1,13 @@
+[Unit]
+Description=Cloudflare Status Monitor
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cf-status -c /etc/cf-status/env.config
+Restart=always
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target 

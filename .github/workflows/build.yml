@@ -1,0 +1,62 @@
+name: Build and Package
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Build
+      run: |
+        go build -o cf-status main.go
+        
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+        
+    - name: Install FPM
+      run: |
+        gem install fpm
+        
+    - name: Prepare package files
+      run: |
+        mkdir -p ./pkg/usr/local/bin
+        mkdir -p ./pkg/etc/cf-status
+        cp cf-status ./pkg/usr/local/bin/
+        cp env.config ./pkg/etc/cf-status/
+        chmod 755 ./pkg/usr/local/bin/cf-status
+        chmod 644 ./pkg/etc/cf-status/env.config
+        
+    - name: Create RPM package
+      run: |
+        fpm -s dir -t rpm \
+          -n cf-status \
+          -v 1.0.0 \
+          --rpm-user root \
+          --rpm-group root \
+          --description "Cloudflare Status Monitor" \
+          --url "https://github.com/${{ github.repository }}" \
+          --maintainer "${{ github.repository_owner }}" \
+          --after-install scripts/post-install.sh \
+          --before-remove scripts/pre-remove.sh \
+          -C ./pkg \
+          usr etc
+          
+    - name: Upload RPM artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: cf-status-rpm
+        path: cf-status-*.rpm 
