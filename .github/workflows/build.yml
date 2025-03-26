@@ -3,6 +3,8 @@ name: Build and Package
 on:
   push:
     branches: [ master ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ master ]
 
@@ -42,9 +44,13 @@ jobs:
         
     - name: Create RPM package
       run: |
+        VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+        [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+        [ "$VERSION" == "master" ] && VERSION='1.0.0'
+        
         fpm -s dir -t rpm \
           -n cf-status \
-          -v 1.0.0 \
+          -v $VERSION \
           --rpm-user root \
           --rpm-group root \
           --description "Cloudflare Status Monitor" \
@@ -59,4 +65,15 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: cf-status-rpm
-        path: cf-status-*.rpm 
+        path: cf-status-*.rpm
+        
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: cf-status-*.rpm
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
