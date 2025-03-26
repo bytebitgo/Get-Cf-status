@@ -17,32 +17,42 @@ graph TD
     F -->|否| H[跳过通知]
     end
     
+    subgraph 状态追踪
+    B --> I[Header处理]
+    I --> J[版本存储]
+    end
+    
     subgraph 配置和调度
-    I[配置管理] --> B
-    J[定时任务] --> B
+    K[配置管理] --> B
+    L[定时任务] --> B
     end
     
     subgraph 输出
-    G
-    K[日志记录]
+    G --> M[通知组装器]
+    J --> M
+    M --> N[最终通知]
+    O[日志记录]
     end
     
-    C --> K
-    E --> K
+    C --> O
+    E --> O
 ```
 
 ## 系统组件
 
 1. **数据源**
    - Cloudflare Status API：提供实时状态数据
+   - Status Version：通过 Header 跟踪 API 版本
 
 2. **核心组件**
    - 监控服务：定期获取状态数据
    - 事件处理器：分析和处理事件
    - 内存存储：保存最近的N个事件（可配置数量）
    - 事件对比器：比较新旧事件变化
+   - 版本追踪：记录并报告 API 版本信息
 
 3. **输出组件**
+   - 通知组装器：合并事件和版本信息
    - 钉钉通知：发送告警和报告
    - 日志记录：记录运行状态
 
@@ -148,6 +158,7 @@ sudo systemctl enable cf-status
 # Cloudflare 状态更新
 
 时间: 2024-XX-XX XX:XX:XX
+API 版本: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 新事件
 ### 事件: [事件名称]
@@ -166,12 +177,32 @@ sudo systemctl enable cf-status
 # Cloudflare 每日状态报告
 
 报告时间: 2024-XX-XX XX:XX:XX
+API 版本: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 [事件详情列表]
 
 ---
 详细状态请访问: https://www.cloudflarestatus.com/
 \`\`\`
+
+## 数据处理流程
+
+```mermaid
+flowchart TD
+    A[获取 API 响应] --> B[检查状态码]
+    B -->|200| C[提取 Header 版本]
+    C --> D[存储版本信息]
+    C --> E[解析事件数据]
+    E --> F[存入内存]
+    
+    subgraph 通知处理
+    G[生成通知内容] --> H[添加版本信息]
+    H --> I[发送通知]
+    end
+    
+    F --> G
+    D --> H
+```
 
 ## 注意事项
 
