@@ -1,6 +1,8 @@
 # Cloudflare 状态监控服务
 
 这是一个用于监控 Cloudflare 服务状态的工具，它可以实时获取 Cloudflare 的事件信息，并通过钉钉机器人发送通知。
+![image](https://github.com/user-attachments/assets/44b3051f-7358-4691-a12a-f4c9f66cba08)
+
 
 ## 架构设计
 
